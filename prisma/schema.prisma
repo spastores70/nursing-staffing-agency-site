@@ -1,0 +1,500 @@
+// Nursing Staffing Platform - Prisma Schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  NURSE
+  FACILITY
+  ADMIN
+}
+
+enum UserStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  REJECTED
+}
+
+enum JobType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  PER_DIEM
+  TRAVEL
+}
+
+enum JobStatus {
+  DRAFT
+  OPEN
+  PAUSED
+  CLOSED
+  FILLED
+}
+
+enum ShiftType {
+  DAY
+  EVENING
+  NIGHT
+  ROTATING
+  WEEKEND
+}
+
+enum ApplicationStatus {
+  PENDING
+  REVIEWED
+  SHORTLISTED
+  INTERVIEW_SCHEDULED
+  OFFERED
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
+enum InterviewStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELED
+  PAST_DUE
+  TRIALING
+  INCOMPLETE
+}
+
+enum SubscriptionPlan {
+  FREE
+  FACILITY_BASIC
+  FACILITY_PRO
+  FACILITY_ENTERPRISE
+  NURSE_PRO
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+}
+
+enum NotificationType {
+  APPLICATION_RECEIVED
+  APPLICATION_STATUS
+  INTERVIEW_SCHEDULED
+  JOB_MATCH
+  SUBSCRIPTION_RENEWAL
+  ACCOUNT_APPROVED
+  GENERAL
+}
+
+enum CertificationType {
+  RN
+  LPN
+  CNA
+  NP
+  PA
+  CRNA
+  CNM
+  CNS
+  OTHER
+}
+
+// ─── Auth / Core User ─────────────────────────────────────────────────────────
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model User {
+  id            String     @id @default(cuid())
+  email         String     @unique
+  emailVerified DateTime?
+  password      String?
+  name          String?
+  image         String?
+  phone         String?
+  role          UserRole   @default(NURSE)
+  status        UserStatus @default(PENDING)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  lastLoginAt   DateTime?
+
+  // Reset password
+  resetToken        String?   @unique
+  resetTokenExpires DateTime?
+
+  // Relations
+  accounts      Account[]
+  sessions      Session[]
+  nurseProfile  NurseProfile?
+  facilityProfile FacilityProfile?
+  notifications Notification[]
+  activityLogs  ActivityLog[]
+
+  @@index([email])
+  @@index([role])
+  @@index([status])
+}
+
+// ─── Nurse ────────────────────────────────────────────────────────────────────
+
+model NurseProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  bio             String?  @db.Text
+  specializations String[]
+  yearsOfExperience Int    @default(0)
+  education       String?
+  currentLocation String?
+  willingToRelocate Boolean @default(false)
+  preferredLocations String[]
+  preferredJobTypes  JobType[]
+  preferredShifts    ShiftType[]
+  expectedSalaryMin  Float?
+  expectedSalaryMax  Float?
+  resumeUrl       String?
+  profileComplete Boolean  @default(false)
+  isAvailable     Boolean  @default(true)
+  availableFrom   DateTime?
+  rating          Float    @default(0)
+  totalRatings    Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  certifications  NurseCertification[]
+  workExperiences WorkExperience[]
+  applications    Application[]
+  savedJobs       SavedJob[]
+  subscription    Subscription?
+
+  @@index([userId])
+  @@index([specializations])
+  @@index([isAvailable])
+}
+
+model NurseCertification {
+  id              String            @id @default(cuid())
+  nurseProfileId  String
+  type            CertificationType
+  name            String
+  issuingBody     String?
+  licenseNumber   String?
+  issueDate       DateTime?
+  expiryDate      DateTime?
+  documentUrl     String?
+  isVerified      Boolean           @default(false)
+  verifiedAt      DateTime?
+  createdAt       DateTime          @default(now())
+
+  nurseProfile    NurseProfile      @relation(fields: [nurseProfileId], references: [id], onDelete: Cascade)
+
+  @@index([nurseProfileId])
+}
+
+model WorkExperience {
+  id             String    @id @default(cuid())
+  nurseProfileId String
+  title          String
+  facility       String
+  location       String?
+  startDate      DateTime
+  endDate        DateTime?
+  isCurrent      Boolean   @default(false)
+  description    String?   @db.Text
+  createdAt      DateTime  @default(now())
+
+  nurseProfile   NurseProfile @relation(fields: [nurseProfileId], references: [id], onDelete: Cascade)
+
+  @@index([nurseProfileId])
+}
+
+// ─── Facility ─────────────────────────────────────────────────────────────────
+
+model FacilityProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  facilityName    String
+  facilityType    String   // Hospital, Clinic, Nursing Home, etc.
+  description     String?  @db.Text
+  website         String?
+  phone           String?
+  address         String?
+  city            String?
+  state           String?
+  zipCode         String?
+  country         String   @default("US")
+  logoUrl         String?
+  bedCount        Int?
+  accreditations  String[]
+  specialties     String[]
+  isVerified      Boolean  @default(false)
+  verifiedAt      DateTime?
+  rating          Float    @default(0)
+  totalRatings    Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobs            Job[]
+  subscription    Subscription?
+  invoices        Invoice[]
+
+  @@index([userId])
+  @@index([city, state])
+  @@index([facilityType])
+}
+
+// ─── Jobs ─────────────────────────────────────────────────────────────────────
+
+model Job {
+  id              String     @id @default(cuid())
+  facilityId      String
+  title           String
+  description     String     @db.Text
+  requirements    String     @db.Text
+  responsibilities String    @db.Text
+  jobType         JobType
+  shiftType       ShiftType
+  specializations String[]
+  location        String
+  city            String
+  state           String
+  isRemote        Boolean    @default(false)
+  salaryMin       Float?
+  salaryMax       Float?
+  salaryUnit      String     @default("HOUR") // HOUR, DAY, WEEK, MONTH, YEAR
+  benefits        String[]
+  startDate       DateTime?
+  endDate         DateTime?
+  positions       Int        @default(1)
+  status          JobStatus  @default(DRAFT)
+  viewCount       Int        @default(0)
+  expiresAt       DateTime?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  facility        FacilityProfile @relation(fields: [facilityId], references: [id], onDelete: Cascade)
+  applications    Application[]
+  savedBy         SavedJob[]
+
+  @@index([facilityId])
+  @@index([status])
+  @@index([city, state])
+  @@index([specializations])
+  @@index([jobType])
+}
+
+// ─── Applications ─────────────────────────────────────────────────────────────
+
+model Application {
+  id              String            @id @default(cuid())
+  jobId           String
+  nurseProfileId  String
+  coverLetter     String?           @db.Text
+  status          ApplicationStatus @default(PENDING)
+  notes           String?           @db.Text
+  facilityNotes   String?           @db.Text
+  appliedAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  reviewedAt      DateTime?
+  withdrawnAt     DateTime?
+
+  job             Job               @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  nurseProfile    NurseProfile      @relation(fields: [nurseProfileId], references: [id], onDelete: Cascade)
+  interviews      Interview[]
+
+  @@unique([jobId, nurseProfileId])
+  @@index([jobId])
+  @@index([nurseProfileId])
+  @@index([status])
+}
+
+model Interview {
+  id             String          @id @default(cuid())
+  applicationId  String
+  scheduledAt    DateTime
+  duration       Int             @default(60) // minutes
+  type           String          @default("VIDEO") // VIDEO, PHONE, IN_PERSON
+  location       String?
+  meetingLink    String?
+  status         InterviewStatus @default(SCHEDULED)
+  notes          String?         @db.Text
+  feedback       String?         @db.Text
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  application    Application     @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+  @@index([scheduledAt])
+}
+
+model SavedJob {
+  id             String       @id @default(cuid())
+  nurseProfileId String
+  jobId          String
+  savedAt        DateTime     @default(now())
+
+  nurseProfile   NurseProfile @relation(fields: [nurseProfileId], references: [id], onDelete: Cascade)
+  job            Job          @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([nurseProfileId, jobId])
+}
+
+// ─── Payments & Subscriptions ─────────────────────────────────────────────────
+
+model Subscription {
+  id                   String             @id @default(cuid())
+  facilityProfileId    String?            @unique
+  nurseProfileId       String?            @unique
+  stripeCustomerId     String?            @unique
+  stripeSubscriptionId String?            @unique
+  plan                 SubscriptionPlan   @default(FREE)
+  status               SubscriptionStatus @default(ACTIVE)
+  currentPeriodStart   DateTime?
+  currentPeriodEnd     DateTime?
+  cancelAtPeriodEnd    Boolean            @default(false)
+  trialEnd             DateTime?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  facilityProfile      FacilityProfile?   @relation(fields: [facilityProfileId], references: [id])
+  nurseProfile         NurseProfile?      @relation(fields: [nurseProfileId], references: [id])
+  payments             Payment[]
+
+  @@index([status])
+}
+
+model Payment {
+  id                 String        @id @default(cuid())
+  subscriptionId     String?
+  stripePaymentId    String?       @unique
+  stripeInvoiceId    String?       @unique
+  amount             Float
+  currency           String        @default("usd")
+  status             PaymentStatus @default(PENDING)
+  description        String?
+  receiptUrl         String?
+  failureReason      String?
+  paidAt             DateTime?
+  createdAt          DateTime      @default(now())
+
+  subscription       Subscription? @relation(fields: [subscriptionId], references: [id])
+
+  @@index([subscriptionId])
+  @@index([status])
+}
+
+model Invoice {
+  id              String          @id @default(cuid())
+  facilityId      String
+  invoiceNumber   String          @unique
+  stripeInvoiceId String?         @unique
+  amount          Float
+  tax             Float           @default(0)
+  total           Float
+  status          PaymentStatus   @default(PENDING)
+  dueDate         DateTime?
+  paidAt          DateTime?
+  downloadUrl     String?
+  items           Json
+  createdAt       DateTime        @default(now())
+
+  facility        FacilityProfile @relation(fields: [facilityId], references: [id])
+
+  @@index([facilityId])
+  @@index([status])
+}
+
+// ─── Notifications ────────────────────────────────────────────────────────────
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  message   String           @db.Text
+  data      Json?
+  isRead    Boolean          @default(false)
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+}
+
+// ─── Admin / Audit ────────────────────────────────────────────────────────────
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String
+  resource  String
+  resourceId String?
+  details   Json?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model SystemSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt
+
+  @@index([key])
+}
