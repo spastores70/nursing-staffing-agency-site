@@ -5,7 +5,8 @@ import { updateApplicationStatusSchema } from "@/lib/validators";
 import { UserRole } from "@prisma/client";
 import { sendApplicationStatusEmail } from "@/lib/email";
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const session = await getSession();
   if (!session?.user || session.user.role !== UserRole.FACILITY) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -19,9 +20,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       return NextResponse.json({ error: parsed.error.errors[0].message }, { status: 400 });
     }
 
-    // Verify facility owns this application's job
     const application = await prisma.application.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         job: { include: { facility: true } },
         nurseProfile: { include: { user: { select: { email: true, name: true } } } },
@@ -36,7 +36,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     }
 
     const updated = await prisma.application.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         status: parsed.data.status as any,
         facilityNotes: parsed.data.notes,
@@ -44,18 +44,16 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       },
     });
 
-    // Notify nurse
     await prisma.notification.create({
       data: {
         userId: application.nurseProfile.userId,
         type: "APPLICATION_STATUS",
         title: "Application Update",
         message: `Your application for ${application.job.title} has been updated to: ${parsed.data.status}`,
-        data: { applicationId: params.id },
+        data: { applicationId: id },
       },
     });
 
-    // Send status email non-blocking
     sendApplicationStatusEmail(
       application.nurseProfile.user.email,
       application.nurseProfile.user.name || "there",

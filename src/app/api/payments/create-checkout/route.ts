@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { stripe, createCheckoutSession, createStripeCustomer } from "@/lib/stripe";
+import { createCheckoutSession, createStripeCustomer } from "@/lib/stripe";
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
     // Get or create Stripe customer
-    let subscription = await prisma.subscription.findFirst({
+    const subscription = await prisma.subscription.findFirst({
       where: session.user.role === "FACILITY"
         ? { facilityProfile: { userId: session.user.id } }
         : { nurseProfile: { userId: session.user.id } },

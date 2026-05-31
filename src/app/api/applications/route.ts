@@ -76,7 +76,7 @@ export async function GET(req: NextRequest) {
   const page = Number(searchParams.get("page") || 1);
   const pageSize = 20;
 
-  let where: any = {};
+  const where: any = {};
 
   if (session.user.role === UserRole.NURSE) {
     const nurseProfile = await prisma.nurseProfile.findUnique({ where: { userId: session.user.id } });

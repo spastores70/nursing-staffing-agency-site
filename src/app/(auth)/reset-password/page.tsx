@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
@@ -14,7 +14,7 @@ import { resetPasswordRequestSchema, resetPasswordSchema } from "@/lib/validator
 import { toast } from "@/hooks/use-toast";
 import { Mail, Lock, CheckCircle, Eye, EyeOff } from "lucide-react";
 
-export default function ResetPasswordPage() {
+function ResetPasswordForm() {
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
 
@@ -23,9 +23,9 @@ export default function ResetPasswordPage() {
   const [showPassword, setShowPassword] = useState(false);
 
   // Request form
-  const requestForm = useForm({ resolver: zodResolver(resetPasswordRequestSchema) });
+  const requestForm = useForm<{ email: string }>({ resolver: zodResolver(resetPasswordRequestSchema) });
   // Reset form
-  const resetForm = useForm({ resolver: zodResolver(resetPasswordSchema) });
+  const resetForm = useForm<{ token: string; password: string; confirmPassword: string }>({ resolver: zodResolver(resetPasswordSchema) });
 
   async function onRequestSubmit(data: { email: string }) {
     setIsLoading(true);
@@ -96,14 +96,14 @@ export default function ResetPasswordPage() {
               </Button>
             </div>
           ) : token ? (
-            <form onSubmit={resetForm.handleSubmit((d) => onResetSubmit(d as any))} className="space-y-4">
+            <form onSubmit={resetForm.handleSubmit(onResetSubmit)} className="space-y-4">
               <div className="space-y-2">
                 <Label>New Password</Label>
                 <Input
                   type={showPassword ? "text" : "password"}
                   leftIcon={<Lock className="h-4 w-4" />}
                   rightIcon={<button type="button" onClick={() => setShowPassword(!showPassword)}>{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button>}
-                  error={(resetForm.formState.errors as any).password?.message}
+                  error={resetForm.formState.errors.password?.message}
                   {...resetForm.register("password")}
                 />
               </div>
@@ -112,7 +112,7 @@ export default function ResetPasswordPage() {
                 <Input
                   type="password"
                   leftIcon={<Lock className="h-4 w-4" />}
-                  error={(resetForm.formState.errors as any).confirmPassword?.message}
+                  error={resetForm.formState.errors.confirmPassword?.message}
                   {...resetForm.register("confirmPassword")}
                 />
               </div>
@@ -126,7 +126,7 @@ export default function ResetPasswordPage() {
                   type="email"
                   placeholder="you@example.com"
                   leftIcon={<Mail className="h-4 w-4" />}
-                  error={(requestForm.formState.errors as any).email?.message}
+                  error={requestForm.formState.errors.email?.message}
                   {...requestForm.register("email")}
                 />
               </div>
@@ -139,5 +139,13 @@ export default function ResetPasswordPage() {
         </CardContent>
       </Card>
     </motion.div>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense>
+      <ResetPasswordForm />
+    </Suspense>
   );
 }

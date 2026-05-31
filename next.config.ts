@@ -11,9 +11,7 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "*.amazonaws.com" },
     ],
   },
-  experimental: {
-    serverComponentsExternalPackages: ["@prisma/client", "bcryptjs"],
-  },
+  serverExternalPackages: ["@prisma/client", "bcryptjs"],
 };
 
 export default nextConfig;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { signIn } from "next-auth/react";
@@ -21,7 +21,7 @@ const errorMessages: Record<string, string> = {
   CredentialsSignin: "Invalid email or password.",
 };
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || "/";
@@ -53,7 +53,6 @@ export default function LoginPage() {
         return;
       }
 
-      // Redirect based on role (middleware handles this, but let's use a generic redirect)
       router.push(callbackUrl);
       router.refresh();
     } finally {
@@ -88,21 +87,13 @@ export default function LoginPage() {
             </div>
           )}
 
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full gap-2"
-            onClick={handleGoogleSignIn}
-            loading={isGoogleLoading}
-          >
+          <Button type="button" variant="outline" className="w-full gap-2" onClick={handleGoogleSignIn} loading={isGoogleLoading}>
             <Chrome className="h-4 w-4" />
             Continue with Google
           </Button>
 
           <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t" />
-            </div>
+            <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
             <div className="relative flex justify-center text-xs uppercase">
               <span className="bg-background px-2 text-muted-foreground">Or continue with email</span>
             </div>
@@ -111,51 +102,40 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="you@example.com"
-                leftIcon={<Mail className="h-4 w-4" />}
-                error={errors.email?.message}
-                {...register("email")}
-              />
+              <Input id="email" type="email" placeholder="you@example.com" leftIcon={<Mail className="h-4 w-4" />} error={errors.email?.message} {...register("email")} />
             </div>
-
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="password">Password</Label>
-                <Link href="/reset-password" className="text-xs text-brand-600 hover:underline">
-                  Forgot password?
-                </Link>
+                <Link href="/reset-password" className="text-xs text-brand-600 hover:underline">Forgot password?</Link>
               </div>
               <Input
                 id="password"
                 type={showPassword ? "text" : "password"}
                 placeholder="Enter your password"
                 leftIcon={<Lock className="h-4 w-4" />}
-                rightIcon={
-                  <button type="button" onClick={() => setShowPassword(!showPassword)}>
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                }
+                rightIcon={<button type="button" onClick={() => setShowPassword(!showPassword)}>{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button>}
                 error={errors.password?.message}
                 {...register("password")}
               />
             </div>
-
-            <Button type="submit" className="w-full" loading={isLoading}>
-              Sign In
-            </Button>
+            <Button type="submit" className="w-full" loading={isLoading}>Sign In</Button>
           </form>
 
           <p className="text-center text-sm text-muted-foreground">
             Don&apos;t have an account?{" "}
-            <Link href="/register" className="font-medium text-brand-600 hover:underline">
-              Sign up for free
-            </Link>
+            <Link href="/register" className="font-medium text-brand-600 hover:underline">Sign up for free</Link>
           </p>
         </CardContent>
       </Card>
     </motion.div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   );
 }

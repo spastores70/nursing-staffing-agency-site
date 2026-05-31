@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { signIn } from "next-auth/react";
@@ -16,7 +16,7 @@ import { toast } from "@/hooks/use-toast";
 import { Eye, EyeOff, User, Mail, Lock, Building2, Phone, Chrome } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export default function RegisterPage() {
+function RegisterForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const defaultRole = searchParams.get("role") as "NURSE" | "FACILITY" || "NURSE";
@@ -174,5 +174,13 @@ export default function RegisterPage() {
         </CardContent>
       </Card>
     </motion.div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense>
+      <RegisterForm />
+    </Suspense>
   );
 }

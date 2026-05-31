@@ -1,15 +1,26 @@
 import Stripe from "stripe";
 
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2024-11-20.acacia",
-  typescript: true,
-});
+// Lazy singleton — avoids "no apiKey" crash during Next.js build-time static analysis
+let _stripe: Stripe | null = null;
+
+export function getStripe(): Stripe {
+  if (!_stripe) {
+    if (!process.env.STRIPE_SECRET_KEY) {
+      throw new Error("STRIPE_SECRET_KEY is not set");
+    }
+    _stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+      apiVersion: "2025-02-24.acacia",
+      typescript: true,
+    });
+  }
+  return _stripe;
+}
 
 export const PLANS = {
   FACILITY_BASIC: {
     name: "Facility Basic",
-    monthlyPriceId: process.env.STRIPE_FACILITY_MONTHLY_PRICE_ID!,
-    annualPriceId: process.env.STRIPE_FACILITY_ANNUAL_PRICE_ID!,
+    monthlyPriceId: process.env.STRIPE_FACILITY_MONTHLY_PRICE_ID ?? "",
+    annualPriceId: process.env.STRIPE_FACILITY_ANNUAL_PRICE_ID ?? "",
     monthlyPrice: 299,
     annualPrice: 2990,
     features: [
@@ -22,8 +33,8 @@ export const PLANS = {
   },
   FACILITY_PRO: {
     name: "Facility Pro",
-    monthlyPriceId: process.env.STRIPE_FACILITY_MONTHLY_PRICE_ID!,
-    annualPriceId: process.env.STRIPE_FACILITY_ANNUAL_PRICE_ID!,
+    monthlyPriceId: process.env.STRIPE_FACILITY_MONTHLY_PRICE_ID ?? "",
+    annualPriceId: process.env.STRIPE_FACILITY_ANNUAL_PRICE_ID ?? "",
     monthlyPrice: 599,
     annualPrice: 5990,
     features: [
@@ -38,7 +49,7 @@ export const PLANS = {
   },
   NURSE_PRO: {
     name: "Nurse Pro",
-    monthlyPriceId: process.env.STRIPE_NURSE_PRO_MONTHLY_PRICE_ID!,
+    monthlyPriceId: process.env.STRIPE_NURSE_PRO_MONTHLY_PRICE_ID ?? "",
     monthlyPrice: 29,
     annualPrice: 290,
     features: [
@@ -52,7 +63,7 @@ export const PLANS = {
 } as const;
 
 export async function createStripeCustomer(email: string, name: string) {
-  return stripe.customers.create({ email, name });
+  return getStripe().customers.create({ email, name });
 }
 
 export async function createCheckoutSession({
@@ -68,7 +79,7 @@ export async function createCheckoutSession({
   cancelUrl: string;
   metadata?: Record<string, string>;
 }) {
-  return stripe.checkout.sessions.create({
+  return getStripe().checkout.sessions.create({
     customer: customerId,
     mode: "subscription",
     payment_method_types: ["card"],
@@ -84,18 +95,22 @@ export async function createCheckoutSession({
 }
 
 export async function createBillingPortalSession(customerId: string, returnUrl: string) {
-  return stripe.billingPortal.sessions.create({
+  return getStripe().billingPortal.sessions.create({
     customer: customerId,
     return_url: returnUrl,
   });
 }
 
 export async function cancelSubscription(subscriptionId: string) {
-  return stripe.subscriptions.update(subscriptionId, {
+  return getStripe().subscriptions.update(subscriptionId, {
     cancel_at_period_end: true,
   });
 }
 
 export async function constructWebhookEvent(body: string, signature: string) {
-  return stripe.webhooks.constructEvent(body, signature, process.env.STRIPE_WEBHOOK_SECRET!);
+  return getStripe().webhooks.constructEvent(
+    body,
+    signature,
+    process.env.STRIPE_WEBHOOK_SECRET!
+  );
 }
